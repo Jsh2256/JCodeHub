@@ -9,20 +9,48 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter
+import org.springframework.web.cors.CorsConfiguration
+import jakarta.servlet.http.HttpServletResponse
 
 @Configuration
-class SecurityConfig {
+class SecurityConfig(
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter
+) {
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
-            .authorizeHttpRequests { authz ->
-                authz
-                    .requestMatchers("/api/auth/signup","api/auth/login/basic", "/login/oidc/success", "/error", "/oauth2/**").permitAll()
-                    .anyRequest().authenticated()  // 모든 요청에 대해 인증 요구
+            .cors { cors ->
+                cors.configurationSource {
+                    val configuration = CorsConfiguration()
+                    configuration.allowedOrigins = listOf("http://localhost:3000")
+                    configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                    configuration.allowedHeaders = listOf("*")
+                    configuration.exposedHeaders = listOf("Authorization")
+                    configuration.allowCredentials = true
+                    configuration
+                }
+            }
+            .csrf { csrf -> csrf.disable() }
+//            .exceptionHandling { exceptionHandling ->
+//                exceptionHandling.authenticationEntryPoint { request, response, _ ->
+//                    response.status = HttpServletResponse.SC_UNAUTHORIZED
+//                }
+//            }
+            .authorizeHttpRequests { auth ->
+                auth
+                    .requestMatchers("/api/auth/signup", "/api/auth/login/basic").permitAll()
+                    .requestMatchers("/oauth2/**", "/login/oidc/success").permitAll()
+                    .requestMatchers("/api/users/student", "/api/users/assistant", "/api/users/professor").hasAuthority("ADMIN")
+                    .requestMatchers("/api/users/**").hasAuthority("ADMIN")
+                    .anyRequest().authenticated()
             }
             .oauth2Login { oauth2 ->
-                oauth2.defaultSuccessUrl("/api/auth/login/oidc/success", true)  // 인증 성공 후 이동할 URL 설정
+                oauth2
+                    .defaultSuccessUrl("/api/auth/login/oidc/success", true)
+                    .authorizationEndpoint {
+                        it.baseUri("/oauth2/authorization/keycloak")
+                    }
             }
             .logout { logout ->
                 logout
@@ -37,7 +65,7 @@ class SecurityConfig {
                 }
                 sessionManagement.maximumSessions(1)  // 동시 세션 1개로 제한
             }
-            .addFilterAfter(redirectFilter(), OAuth2LoginAuthenticationFilter::class.java)
+            .addFilterBefore(jwtAuthenticationFilter, OAuth2LoginAuthenticationFilter::class.java)
 
         return http.build()
     }

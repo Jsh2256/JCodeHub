@@ -36,9 +36,13 @@ class AuthService(
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Incorrect password")
         }
 
-        // JWT 토큰 생성 (이메일 + 학교 정보)
-        val jwt = jwtService.createToken(user.email, user.school.toString())
-        return mapOf("message" to "Login successful", "token" to jwt)
+        // JWT 토큰 생성 (이메일 + 학교 정보 + 역할)
+        val jwt = jwtService.createToken(user.email, user.school.toString(), user.role.toString())
+        return mapOf(
+            "message" to "Login successful", 
+            "token" to jwt,
+            "role" to user.role.toString()
+        )
     }
 
     fun oidcLogin(email: String): Map<String, String> {
@@ -52,9 +56,13 @@ class AuthService(
                 )
             )
 
-            // JWT 토큰 생성 (이메일 + 학교 정보)
-            val jwt = jwtService.createToken(email, user.school.toString())
-            return mapOf("message" to "Login successful", "token" to jwt)
+            // JWT 토큰 생성
+            val jwt = jwtService.createToken(email, user.school.toString(), user.role.toString())
+            return mapOf(
+                "message" to "Login successful", 
+                "token" to jwt,
+                "role" to user.role.toString()
+            )
         } catch (e: Exception) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "OIDC Login failed")
         }
